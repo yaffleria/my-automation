@@ -1,0 +1,15 @@
+{
+  "name": "my-automation",
+  "version": "2.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "update": "node src/index.js --update"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "cli-progress": "^3.12.0"
+  }
+}
