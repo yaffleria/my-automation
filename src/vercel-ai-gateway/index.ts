@@ -46,28 +46,18 @@ export async function askAi(prompt: string) {
   return result;
 }
 
-async function getInput(): Promise<string> {
-  const args = process.argv.slice(2);
-  if (args.length > 0) {
-    return args.join(' ');
-  }
-
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  return new Promise((resolve) => {
-    rl.question('Please enter your prompt: ', (answer) => {
-      rl.close();
-      resolve(answer);
-    });
-  });
-}
-
 export async function runInteractiveAi() {
   try {
-    const prompt = await getInput();
+    const args = process.argv.slice(2);
+    const shouldSendToTelegram = args.includes('--telegram');
+    const cleanArgs = args.filter(arg => !arg.startsWith('--'));
+
+    let prompt = '';
+    if (cleanArgs.length > 0) {
+      prompt = cleanArgs.join(' ');
+    } else {
+      prompt = await getInputFromStdin();
+    }
 
     if (!prompt || !prompt.trim()) {
       console.log('No prompt provided. Exiting.');
@@ -88,18 +78,36 @@ export async function runInteractiveAi() {
     }
     console.log('\n');
 
-    if (fullResponse.trim()) {
-        console.log('Sending response to Telegram...');
-        await sendTelegramMessage(fullResponse);
-        console.log('Job finished successfully.');
-    } else {
-        console.warn('AI returned empty response. Nothing sent to Telegram.');
+    if (shouldSendToTelegram) {
+      if (fullResponse.trim()) {
+          console.log('Sending response to Telegram...');
+          await sendTelegramMessage(fullResponse);
+          console.log('Message sent to Telegram successfully.');
+      } else {
+          console.warn('AI returned empty response. Nothing sent to Telegram.');
+      }
     }
+
+    console.log('Job finished successfully.');
 
   } catch (error) {
     console.error('Job failed:', error);
     process.exit(1);
   }
+}
+
+async function getInputFromStdin(): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve) => {
+    rl.question('Please enter your prompt: ', (answer) => {
+      rl.close();
+      resolve(answer);
+    });
+  });
 }
 
 // Check if this module is being run directly

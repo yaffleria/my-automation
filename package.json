@@ -6,7 +6,8 @@
     "start": "ts-node src/index.ts",
     "start:ranto28-scrapper": "ts-node src/index.ts ranto28-scrapper",
     "update:ranto28-scrapper": "ts-node src/index.ts ranto28-scrapper --update",
-    "grok": "ts-node src/vercel-ai-gateway/index.ts",
+    "ai:telegram": "ts-node src/vercel-ai-gateway/index.ts --telegram",
+    "ai": "ts-node src/vercel-ai-gateway/index.ts",
     "check": "tsc --noEmit",
     "format": "prettier --write ."
   },
