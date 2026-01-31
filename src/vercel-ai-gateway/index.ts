@@ -1,5 +1,7 @@
 import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
+import * as readline from 'readline';
+import { sendTelegramMessage } from '../telegram-bot/sender';
 import * as dotenv from 'dotenv';
 import path from 'path';
 
@@ -32,6 +34,7 @@ export async function askAi(prompt: string) {
   // Note: If a custom baseURL is required for the gateway, it should be added here.
   const openai = createOpenAI({
     apiKey: apiKey,
+    baseURL: 'https://ai-gateway.vercel.sh/v1',
   });
 
   // Execute the request
@@ -41,4 +44,65 @@ export async function askAi(prompt: string) {
   });
 
   return result;
+}
+
+async function getInput(): Promise<string> {
+  const args = process.argv.slice(2);
+  if (args.length > 0) {
+    return args.join(' ');
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve) => {
+    rl.question('Please enter your prompt: ', (answer) => {
+      rl.close();
+      resolve(answer);
+    });
+  });
+}
+
+export async function runInteractiveAi() {
+  try {
+    const prompt = await getInput();
+
+    if (!prompt || !prompt.trim()) {
+      console.log('No prompt provided. Exiting.');
+      return;
+    }
+
+    console.log('--- Prompt ---');
+    console.log(prompt);
+    console.log('--------------');
+
+    console.log('Requesting AI response...');
+    const result = await askAi(prompt);
+    
+    let fullResponse = '';
+    for await (const part of result.textStream) {
+      process.stdout.write(part);
+      fullResponse += part;
+    }
+    console.log('\n');
+
+    if (fullResponse.trim()) {
+        console.log('Sending response to Telegram...');
+        await sendTelegramMessage(fullResponse);
+        console.log('Job finished successfully.');
+    } else {
+        console.warn('AI returned empty response. Nothing sent to Telegram.');
+    }
+
+  } catch (error) {
+    console.error('Job failed:', error);
+    process.exit(1);
+  }
+}
+
+// Check if this module is being run directly
+if (require.main === module) {
+  runInteractiveAi();
 }

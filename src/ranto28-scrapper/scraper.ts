@@ -14,6 +14,19 @@ import {
   Post,
 } from './utils';
 
+function parseNaverDate(dateStr: string): Date {
+  const cleanStr = dateStr.replace(/\.$/, '');
+  const parts = cleanStr.split('.');
+
+  if (parts.length < 3) return new Date();
+
+  const year = parseInt(parts[0].trim());
+  const month = parseInt(parts[1].trim()) - 1;
+  const day = parseInt(parts[2].trim());
+
+  return new Date(year, month, day);
+}
+
 async function getPostIds(page: number): Promise<string[]> {
   try {
     const url = `${START_URL}?blogId=${BLOG_ID}&currentPage=${page}`;
@@ -67,7 +80,7 @@ async function scrapePost(postId: string): Promise<Post | null> {
 }
 
 export async function scrape(updateMode = false) {
-  console.log('Starting Scraper (Individual Markdown Files)...');
+  console.log('Starting Scraper (Recent 1 Week)...');
 
   // 1. Setup ID check
   const existingIds = getExistingIdSet();
@@ -91,6 +104,13 @@ export async function scrape(updateMode = false) {
   let keepGoing = true;
   let scrapedCount = 0;
 
+  // Date Logic: 7 days ago, midnight
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const cutoffDate = new Date(Date.now() - ONE_WEEK_MS);
+  cutoffDate.setHours(0, 0, 0, 0);
+
+  console.log(`Fetching posts since: ${cutoffDate.toLocaleDateString()}`);
+
   while (keepGoing) {
     const postIds = await getPostIds(page);
 
@@ -102,23 +122,36 @@ export async function scrape(updateMode = false) {
     for (const id of postIds) {
       progressBar.update(scrapedCount, { currentId: id });
 
-      if (existingIds.has(id)) {
-        if (updateMode) {
-          // Stop immediately on update mode
-          keepGoing = false;
-          break;
-        } else {
-          continue; // Skip existing in full scan
-        }
+      // Always fetch to check date, unless we trust existingIds is enough?
+      // For "Recent Week" we rely on date.
+      // If we used updateMode before, we stopped at existing.
+      // Here we stop at date. 
+      // If an ID exists, we just skip saving, but we can't skip date check easily
+      // unless we assume existing IDs are sorted or something.
+      // Let's fetch to be safe and robust.
+
+      const postData = await scrapePost(id);
+      
+      if (!postData) continue;
+
+      const postDate = parseNaverDate(postData.date);
+
+      if (postDate < cutoffDate) {
+        // Stop the entire process if we hit old posts
+        // (Assuming reverse chronological order)
+        keepGoing = false;
+        break;
       }
 
-      // Scrape New
-      const postData = await scrapePost(id);
-      if (postData) {
-        savePostAsFile(postData);
-        existingIds.add(id);
-        scrapedCount++;
+      // If we have it already, skip saving
+      if (existingIds.has(id)) {
+        continue;
       }
+
+      savePostAsFile(postData);
+      existingIds.add(id);
+      scrapedCount++;
+
       // Small delay for politeness
       await new Promise((r) => setTimeout(r, 50));
     }
